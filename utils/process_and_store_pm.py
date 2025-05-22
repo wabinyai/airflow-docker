@@ -124,7 +124,7 @@ def generate_and_store_vector_tiles(
         return
 
     tiles_gdf = pd.concat(tile_frames, ignore_index=True)
-    target_table = f"{table_name}_times"  # Note: '_times' as requested; '_tiles' is more conventional for MVT
+    target_table = f"{table_name}_tiles"  # Note: '_times' as requested; '_tiles' is more conventional for MVT
 
     tiles_gdf.to_postgis(
         name=target_table,
