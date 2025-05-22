@@ -25,6 +25,7 @@ services:
       _AIRFLOW_WWW_USER_PASSWORD: airflow
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./utils:/opt/airflow/utils 
     ports:
       - "8080:8080"
     command: >
@@ -42,6 +43,7 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./utils:/opt/airflow/utils 
     command: airflow scheduler
 
 volumes:
