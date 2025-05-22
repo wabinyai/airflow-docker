@@ -23,7 +23,7 @@ with DAG(
     dag_id='cams_pm_forecast_pipeline',
     default_args=default_args,
     start_date=datetime(2025, 1, 1),
-    schedule_interval='@daily',
+    schedule_interval='0 */6 * * *',  # every 6 hours
     catchup=False,
     tags=['cams', 'air_quality']
 ) as dag:
