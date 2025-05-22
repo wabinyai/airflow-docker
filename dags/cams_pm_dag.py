@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import os
 from pathlib import Path
 
-# Import functions from your existing script 
-from camspipeline import (
+# Import functions from your existing script
+from plugins.camspipeline import (
     configure_cds_api,
     retrieve_variable,
     process_netcdf,
