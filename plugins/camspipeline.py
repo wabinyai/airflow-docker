@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, MetaData, Table, Column, Float, DateTime, 
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 from pathlib import Path
+import cftime
 
 # === Configuration Setup ===
 load_dotenv()
@@ -20,7 +21,7 @@ DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = os.getenv('DB_PORT', '5432')
 DB_NAME = os.getenv('DB_NAME', 'your_database')
 CDS_API_KEY = os.getenv('CDS_API_KEY', 'your-cds-api-key')
- 
+
 engine = create_engine(
     f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
     pool_size=5,
@@ -34,13 +35,11 @@ cdsapirc_content = f"url: {url}\nkey: {CDS_API_KEY}"
 cdsapirc_path = Path.home() / ".cdsapirc"
 cdsapirc_path.write_text(cdsapirc_content)
 
-
 def configure_cds_api():
     """Configure the CDS API client by writing the .cdsapirc file."""
     if not CDS_API_KEY or CDS_API_KEY == 'your-cds-api-key':
         raise ValueError("CDS API key is not set. Please provide a valid key in .env.")
     cdsapirc_path.write_text(cdsapirc_content)
-
 
 def retrieve_variable(variable_name: str, output_zip_path: str) -> None:
     """Download a variable from the CAMS dataset."""
@@ -64,7 +63,6 @@ def retrieve_variable(variable_name: str, output_zip_path: str) -> None:
         )
     except Exception as e:
         raise RuntimeError(f"Failed to download {variable_name}: {e}")
-
 
 def process_netcdf(zip_file_path: str, variable_short_name: str) -> xr.Dataset:
     """Process a NetCDF file and return an xarray Dataset."""
@@ -119,7 +117,6 @@ def process_netcdf(zip_file_path: str, variable_short_name: str) -> xr.Dataset:
     except Exception as e:
         raise RuntimeError(f"Failed to process NetCDF file {zip_file_path}: {e}")
 
-
 def create_table_if_not_exists(table_name: str, variable_name: str, engine) -> Table:
     metadata = MetaData()
     table = Table(
@@ -140,7 +137,6 @@ def create_table_if_not_exists(table_name: str, variable_name: str, engine) -> T
     except SQLAlchemyError as e:
         raise RuntimeError(f"Failed to create table {table_name}: {e}")
 
-
 def check_duplicates(df: pd.DataFrame, table_name: str, engine) -> pd.DataFrame:
     try:
         existing = pd.read_sql(
@@ -156,25 +152,33 @@ def check_duplicates(df: pd.DataFrame, table_name: str, engine) -> pd.DataFrame:
     except SQLAlchemyError as e:
         raise RuntimeError(f"Failed to check duplicates for {table_name}: {e}")
 
-
 def save_to_postgres(ds: xr.Dataset, table_name: str, variable_name: str, engine) -> None:
     try:
+        # Convert xarray Dataset to DataFrame
         df = ds.to_dataframe().reset_index()
         df.columns = [col.lower() for col in df.columns]
 
+        # Convert cftime.DatetimeGregorian to datetime.datetime
+        if df['time'].dtype == 'object' and any(isinstance(t, cftime.DatetimeGregorian) for t in df['time']):
+            df['time'] = pd.to_datetime([t.isoformat() for t in df['time']])
+
+        # Verify required columns
         expected_columns = {'time', 'latitude', 'longitude', variable_name.lower()}
         if not expected_columns.issubset(df.columns):
             raise ValueError(f"DataFrame missing required columns: {expected_columns - set(df.columns)}")
 
+        # Create table if it doesn't exist
         create_table_if_not_exists(table_name, variable_name, engine)
+        
+        # Check for duplicates
         df = check_duplicates(df, table_name, engine)
 
+        # Save to PostgreSQL
         if not df.empty:
             df.to_sql(table_name, engine, if_exists='append', index=False, chunksize=1000)
 
     except Exception as e:
         raise RuntimeError(f"Failed to save data to {table_name}: {e}")
-
 
 def main():
     try:
@@ -194,7 +198,6 @@ def main():
 
     except Exception as e:
         raise RuntimeError(f"Pipeline failed: {e}")
-
 
 if __name__ == "__main__":
     main()
