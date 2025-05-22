@@ -55,3 +55,8 @@ stop docker
 ```sh
 docker-compose down
 ```
+
+access airflow
+```sh
+http://localhost:8080
+```
