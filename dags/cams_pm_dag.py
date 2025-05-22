@@ -14,6 +14,11 @@ from utils.camspipeline import (
     engine
 )
 
+from utils.process_and_store_pm import (
+    generate_pm25_vector_tiles,
+    generate_pm10_vector_tiles
+)
+
 default_args = {
     'owner': 'airqo',
     'retries': 1,
@@ -64,5 +69,15 @@ with DAG(
         python_callable=process_and_store_pm10
     )
 
-    task_download_pm25 >> task_process_store_pm25
-    task_download_pm10 >> task_process_store_pm10
+    task_generate_pm25_tiles = PythonOperator(
+        task_id='generate_pm25_tiles',
+        python_callable=generate_pm25_vector_tiles
+    )
+
+    task_generate_pm10_tiles = PythonOperator(
+        task_id='generate_pm10_tiles',
+        python_callable=generate_pm10_vector_tiles
+    )
+
+    task_download_pm25 >> task_process_store_pm25 >> task_generate_pm25_tiles
+    task_download_pm10 >> task_process_store_pm10 >> task_generate_pm10_tiles
