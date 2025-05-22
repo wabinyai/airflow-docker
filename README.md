@@ -46,3 +46,12 @@ Ensure you have the necessary dependencies installed:
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+start docker
+```sh
+docker-compose up -d
+```
+stop docker
+```sh
+docker-compose down
+```

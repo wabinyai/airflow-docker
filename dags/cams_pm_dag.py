@@ -3,9 +3,10 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+from airflow.plugins_manager import AirflowPlugin
 
 # Import functions from your existing script
-from plugins.camspipeline import (
+from utils.camspipeline import (
     configure_cds_api,
     retrieve_variable,
     process_netcdf,
