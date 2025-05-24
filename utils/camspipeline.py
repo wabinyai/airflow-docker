@@ -166,6 +166,13 @@ def save_to_postgres(ds: xr.Dataset, table_name: str, variable_name: str, engine
         expected_columns = {'time', 'latitude', 'longitude', variable_name.lower()}
         if not expected_columns.issubset(df.columns):
             raise ValueError(f"DataFrame missing required columns: {expected_columns - set(df.columns)}")
+        # Round and aggregate
+        df['latitude'] = df['latitude'].round(6)
+        df['longitude'] = df['longitude'].round(6)
+        df[variable_name.lower()] = df[variable_name.lower()].round(4)
+
+        # Group by unique keys and take mean
+        df = df.groupby(['time', 'latitude', 'longitude']).mean().reset_index()
 
         # Create table if it doesn't exist
         create_table_if_not_exists(table_name, variable_name, engine)
@@ -187,13 +194,19 @@ def main():
         pm25_zip = 'pm25_download.zip'
         pm10_zip = 'pm10_download.zip'
 
+        print("Downloading PM2.5 data...")
         retrieve_variable('particulate_matter_2.5um', pm25_zip)
+        print("Downloading PM10 data...")
         retrieve_variable('particulate_matter_10um', pm10_zip)
 
+        print("Processing NetCDF PM2.5 data...")
         pm25_ds = process_netcdf(pm25_zip, 'pm2p5')
+        print("Processing NetCDF PM10 data...")
         pm10_ds = process_netcdf(pm10_zip, 'pm10')
 
+        print("Saving PM2.5 data to PostgreSQL...")
         save_to_postgres(pm25_ds, "cams_pm25", "pm2p5", engine)
+        print("Saving PM10 data to PostgreSQL...")
         save_to_postgres(pm10_ds, "cams_pm10", "pm10", engine)
 
     except Exception as e:
