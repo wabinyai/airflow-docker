@@ -29,17 +29,17 @@ with DAG(
 
     download_and_store_task = PythonOperator(
         task_id='download_and_store_pm_data',
-        python_callable=CamsDownload.download_and_store_pm,
+        python_callable=lambda: CamsDownload().run(),
     )
 
     generate_pm25_tiles_task = PythonOperator(
         task_id='generate_pm25_vector_tiles',
-        python_callable=Vectortimegenerator.generate_pm25_vector_tiles,
+        python_callable=lambda: Vectortimegenerator().generate_pm25_vector_tiles(),
     )
 
     generate_pm10_tiles_task = PythonOperator(
         task_id='generate_pm10_vector_tiles',
-        python_callable=Vectortimegenerator.generate_pm10_vector_tiles,
+        python_callable=lambda: Vectortimegenerator().generate_pm10_vector_tiles(),
     )
 
     # Set task dependencies

@@ -16,7 +16,7 @@ services:
 
   airflow-webserver:
     build: 
-      context: buildContext
+      context: .
     image: apache/airflow:2.8.1
     restart: always
     depends_on:
