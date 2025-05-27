@@ -11,16 +11,30 @@ from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 from pathlib import Path
 import cftime
+import logging
+import tempfile
+import shutil
+
+# === Logging Setup ===
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # === Configuration Setup ===
 load_dotenv()
-
 DB_USER = os.getenv('DB_USER', 'airqo')
-DB_PASS = os.getenv('DB_PASS', 'your_password')
+DB_PASS = os.getenv('DB_PASS')
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = os.getenv('DB_PORT', '5432')
-DB_NAME = os.getenv('DB_NAME', 'your_database')
-CDS_API_KEY = os.getenv('CDS_API_KEY', 'your-cds-api-key')
+DB_NAME = os.getenv('DB_NAME')
+CDS_API_KEY = os.getenv('CDS_API_KEY')
+
+# Validate environment variables
+if not all([DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME, CDS_API_KEY]):
+    logger.error("Missing required environment variables. Please check .env file.")
+    raise ValueError("Missing required environment variables.")
 
 engine = create_engine(
     f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
@@ -30,16 +44,17 @@ engine = create_engine(
 )
 
 # === CDS API Setup ===
-url = 'https://ads.atmosphere.copernicus.eu/api'
-cdsapirc_content = f"url: {url}\nkey: {CDS_API_KEY}"
 cdsapirc_path = Path.home() / ".cdsapirc"
-cdsapirc_path.write_text(cdsapirc_content)
 
 def configure_cds_api():
     """Configure the CDS API client by writing the .cdsapirc file."""
-    if not CDS_API_KEY or CDS_API_KEY == 'your-cds-api-key':
-        raise ValueError("CDS API key is not set. Please provide a valid key in .env.")
-    cdsapirc_path.write_text(cdsapirc_content)
+    if not CDS_API_KEY:
+        logger.error("CDS API key is not set.")
+        raise ValueError("CDS API key is not set.")
+    cdsapirc_content = f"url: https://ads.atmosphere.copernicus.eu/api\nkey: {CDS_API_KEY}"
+    if not cdsapirc_path.exists() or cdsapirc_path.read_text() != cdsapirc_content:
+        cdsapirc_path.write_text(cdsapirc_content)
+        logger.info(f"Created/updated {cdsapirc_path}")
 
 def retrieve_variable(variable_name: str, output_zip_path: str) -> None:
     """Download a variable from the CAMS dataset."""
@@ -49,6 +64,7 @@ def retrieve_variable(variable_name: str, output_zip_path: str) -> None:
         yesterday = today - datetime.timedelta(days=1)
         date_range = f"{yesterday:%Y-%m-%d}/{today:%Y-%m-%d}"
 
+        logger.info(f"Retrieving {variable_name} data for {date_range}...")
         c.retrieve(
             'cams-global-atmospheric-composition-forecasts',
             {
@@ -61,30 +77,31 @@ def retrieve_variable(variable_name: str, output_zip_path: str) -> None:
             },
             output_zip_path
         )
+        logger.info(f"Downloaded {variable_name} to {output_zip_path}")
     except Exception as e:
-        raise RuntimeError(f"Failed to download {variable_name}: {e}")
+        logger.error(f"Failed to download {variable_name}: {e}")
+        raise
 
-def process_netcdf(zip_file_path: str, variable_short_name: str) -> xr.Dataset:
-    """Process a NetCDF file and return an xarray Dataset."""
-    extract_dir = Path(f"{variable_short_name}_extracted")
-    extract_dir.mkdir(exist_ok=True)
-
-    for file in extract_dir.glob("*.nc"):
-        file.unlink()
-
+def process_netcdf(zip_file_path: str, variable_short_name: str) -> tuple[xr.Dataset, str]:
+    """Process a NetCDF file and return an xarray Dataset and the temporary directory path."""
+    temp_dir = tempfile.mkdtemp()
+    extract_dir = Path(temp_dir)
     try:
         with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
 
         nc_files = list(extract_dir.glob("*.nc"))
         if not nc_files:
+            logger.error(f"No .nc files found in {extract_dir}")
             raise FileNotFoundError(f"No .nc files found in {extract_dir}")
 
         file_path = nc_files[0]
+        logger.info(f"Processing NetCDF file: {file_path}")
 
         with nc.Dataset(file_path) as dataset:
             if variable_short_name not in dataset.variables:
-                raise KeyError(f"Variable {variable_short_name} not found in NetCDF file")
+                logger.error(f"Variable {variable_short_name} not found in NetCDF file")
+                raise KeyError(f"Variable {variable_short_name} not found")
 
             longitude = dataset.variables['longitude'][:]
             latitude = dataset.variables['latitude'][:]
@@ -101,7 +118,8 @@ def process_netcdf(zip_file_path: str, variable_short_name: str) -> xr.Dataset:
             if len(variable_data.shape) == 4:
                 variable_data = variable_data.reshape(-1, variable_data.shape[2], variable_data.shape[3])
             else:
-                raise ValueError(f"{variable_short_name} has unexpected shape: {variable_data.shape}")
+                logger.error(f"{variable_short_name} has unexpected shape: {variable_data.shape}")
+                raise ValueError(f"{variable_short_name} has unexpected shape")
 
             ds = xr.Dataset(
                 {variable_short_name: (["time", "latitude", "longitude"], variable_data)},
@@ -110,16 +128,18 @@ def process_netcdf(zip_file_path: str, variable_short_name: str) -> xr.Dataset:
 
             ds = ds.resample(time="1D").max()
             ds = ds.squeeze(drop=True)
-            ds[variable_short_name] *= 1e9
+            ds[variable_short_name] *= 100
 
-            return ds
+            return ds, temp_dir
 
     except Exception as e:
-        raise RuntimeError(f"Failed to process NetCDF file {zip_file_path}: {e}")
+        logger.error(f"Failed to process NetCDF file {zip_file_path}: {e}")
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
 
-def create_table_if_not_exists(table_name: str, variable_name: str, engine) -> Table:
-    metadata = MetaData()
-    table = Table(
+def create_table(table_name: str, variable_name: str, engine, metadata: MetaData) -> Table:
+    """Define a table schema for the database."""
+    return Table(
         table_name,
         metadata,
         Column('time', DateTime, primary_key=True, nullable=False),
@@ -129,43 +149,23 @@ def create_table_if_not_exists(table_name: str, variable_name: str, engine) -> T
         Index(f'idx_{table_name}_time', 'time'),
     )
 
-    try:
-        with engine.connect() as connection:
-            if not engine.dialect.has_table(connection, table_name):
-                metadata.create_all(engine)
-        return table
-    except SQLAlchemyError as e:
-        raise RuntimeError(f"Failed to create table {table_name}: {e}")
-
-def check_duplicates(df: pd.DataFrame, table_name: str, engine) -> pd.DataFrame:
-    try:
-        existing = pd.read_sql(
-            f"SELECT time, latitude, longitude FROM {table_name}",
-            engine
-        )
-        if not existing.empty:
-            df['key'] = df[['time', 'latitude', 'longitude']].apply(tuple, axis=1)
-            existing['key'] = existing[['time', 'latitude', 'longitude']].apply(tuple, axis=1)
-            new_records = df[~df['key'].isin(existing['key'])].drop(columns='key')
-            return new_records
-        return df
-    except SQLAlchemyError as e:
-        raise RuntimeError(f"Failed to check duplicates for {table_name}: {e}")
-
-def save_to_postgres(ds: xr.Dataset, table_name: str, variable_name: str, engine) -> None:
+def save_to_postgres(ds: xr.Dataset, table_name: str, variable_name: str, engine, zip_file_path: str, temp_dir: str, extract_dir_name: str) -> None:
+    """Save xarray Dataset to PostgreSQL database, drop and recreate table, insert in chunks, and delete files."""
     try:
         # Convert xarray Dataset to DataFrame
         df = ds.to_dataframe().reset_index()
         df.columns = [col.lower() for col in df.columns]
 
-        # Convert cftime.DatetimeGregorian to datetime.datetime
+        # Convert cftime to datetime
         if df['time'].dtype == 'object' and any(isinstance(t, cftime.DatetimeGregorian) for t in df['time']):
             df['time'] = pd.to_datetime([t.isoformat() for t in df['time']])
 
         # Verify required columns
         expected_columns = {'time', 'latitude', 'longitude', variable_name.lower()}
         if not expected_columns.issubset(df.columns):
-            raise ValueError(f"DataFrame missing required columns: {expected_columns - set(df.columns)}")
+            logger.error(f"DataFrame missing required columns: {expected_columns - set(df.columns)}")
+            raise ValueError(f"DataFrame missing required columns")
+
         # Round and aggregate
         df['latitude'] = df['latitude'].round(6)
         df['longitude'] = df['longitude'].round(6)
@@ -174,18 +174,50 @@ def save_to_postgres(ds: xr.Dataset, table_name: str, variable_name: str, engine
         # Group by unique keys and take mean
         df = df.groupby(['time', 'latitude', 'longitude']).mean().reset_index()
 
-        # Create table if it doesn't exist
-        create_table_if_not_exists(table_name, variable_name, engine)
-        
-        # Check for duplicates
-        df = check_duplicates(df, table_name, engine)
+        # Drop and recreate table
+        metadata = MetaData()
+        table = create_table(table_name, variable_name, engine, metadata)
+        try:
+            with engine.begin() as conn:
+                table.drop(engine, checkfirst=True)
+                logger.info(f"Dropped table {table_name}")
+                table.create(engine)
+                logger.info(f"Created table {table_name}")
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to drop/create table {table_name}: {e}")
+            raise
 
-        # Save to PostgreSQL
+        # Insert data into the table in chunks of 1000
         if not df.empty:
-            df.to_sql(table_name, engine, if_exists='append', index=False, chunksize=1000)
+            with engine.begin() as conn:
+                df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=1000)
+            logger.info(f"Saved {len(df)} records to {table_name} in chunks of 1000")
+        else:
+            logger.info(f"No records to save to {table_name}")
 
+        # Delete files after successful database storage
+        try:
+            # Delete zip file
+            if os.path.exists(zip_file_path):
+                os.unlink(zip_file_path)
+                logger.info(f"Deleted zip file: {zip_file_path}")
+            # Delete temporary directory
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.info(f"Deleted temporary directory: {temp_dir}")
+            # Delete extracted directory (e.g., pm25_extracted or pm10_extracted)
+            if os.path.exists(extract_dir_name):
+                shutil.rmtree(extract_dir_name, ignore_errors=True)
+                logger.info(f"Deleted extracted directory: {extract_dir_name}")
+        except Exception as e:
+            logger.warning(f"Failed to delete files for {table_name}: {e}")
+
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to save data to {table_name}: {e}")
+        raise
     except Exception as e:
-        raise RuntimeError(f"Failed to save data to {table_name}: {e}")
+        logger.error(f"Unexpected error saving data to {table_name}: {e}")
+        raise
 
 def main():
     try:
@@ -193,24 +225,33 @@ def main():
 
         pm25_zip = 'pm25_download.zip'
         pm10_zip = 'pm10_download.zip'
+        pm25_extract_dir = 'pm25_extracted'
+        pm10_extract_dir = 'pm10_extracted'
 
-        print("Downloading PM2.5 data...")
-        retrieve_variable('particulate_matter_2.5um', pm25_zip)
-        print("Downloading PM10 data...")
+        # Download data
+        logger.info("Downloading PM10 data...")
         retrieve_variable('particulate_matter_10um', pm10_zip)
+        logger.info("Downloading PM2.5 data...")
+        retrieve_variable('particulate_matter_2.5um', pm25_zip)
 
-        print("Processing NetCDF PM2.5 data...")
-        pm25_ds = process_netcdf(pm25_zip, 'pm2p5')
-        print("Processing NetCDF PM10 data...")
-        pm10_ds = process_netcdf(pm10_zip, 'pm10')
+        # Process data
+        logger.info("Processing NetCDF PM10 data...")
+        pm10_ds, pm10_temp_dir = process_netcdf(pm10_zip, 'pm10')
+        logger.info("Processing NetCDF PM2.5 data...")
+        pm25_ds, pm25_temp_dir = process_netcdf(pm25_zip, 'pm2p5')
 
-        print("Saving PM2.5 data to PostgreSQL...")
-        save_to_postgres(pm25_ds, "cams_pm25", "pm2p5", engine)
-        print("Saving PM10 data to PostgreSQL...")
-        save_to_postgres(pm10_ds, "cams_pm10", "pm10", engine)
+        # Save to database and delete files
+        logger.info("Saving PM10 data to PostgreSQL...")
+        save_to_postgres(pm10_ds, "cams_pm10", "pm10", engine, pm10_zip, pm10_temp_dir, pm10_extract_dir)
+        logger.info("Saving PM2.5 data to PostgreSQL...")
+        save_to_postgres(pm25_ds, "cams_pm25", "pm2p5", engine, pm25_zip, pm25_temp_dir, pm25_extract_dir)
 
     except Exception as e:
-        raise RuntimeError(f"Pipeline failed: {e}")
+        logger.error(f"Pipeline failed: {e}")
+        raise
+    finally:
+        engine.dispose()
+        logger.info("Database engine disposed")
 
 if __name__ == "__main__":
     main()

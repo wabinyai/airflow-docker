@@ -8,6 +8,7 @@
 
 airflow-docker/
 ├── dags/                 # Local folder for synced DAGs
+├── utils                   # Example DAG
 ├── .env                  # Environment variables (e.g., AIRFLOW_UID)
 ├── .gitignore            # Git ignore file
 ├── docker-compose.yml    # Docker Compose configuration
