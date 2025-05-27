@@ -53,7 +53,7 @@ def _load_dataframe(table_name: str, variable: str, run_date: _date) -> pd.DataF
         f"""
         SELECT time, latitude, longitude, {variable}
         FROM {table_name}
-        WHERE DATE(time) = :run_date
+        WHERE DATE(time) = CURRENT_DATE        
         """
     )
     return pd.read_sql(query, _ENGINE, params={"run_date": run_date})
@@ -124,7 +124,16 @@ def generate_and_store_vector_tiles(
         return
 
     tiles_gdf = pd.concat(tile_frames, ignore_index=True)
-    target_table = f"{table_name}_tiles"  # Note: '_times' as requested; '_tiles' is more conventional for MVT
+    target_table = f"{table_name}_tiles"  # Note: '_tiles' for MVT convention
+
+    # Drop the target table if it exists
+    with _ENGINE.begin() as conn:
+        try:
+            conn.execute(text(f"DROP TABLE IF EXISTS public.{target_table};"))
+            logger.info(f"Dropped table {target_table} if it existed")
+        except Exception as e:
+            logger.error(f"Failed to drop table {target_table}: {e}")
+            return
 
     tiles_gdf.to_postgis(
         name=target_table,
