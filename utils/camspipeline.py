@@ -6,7 +6,7 @@ import xarray as xr
 import zipfile
 import os
 import pandas as pd
-from sqlalchemy import create_engine, MetaData, Table, Column, Float, DateTime, Index
+from sqlalchemy import create_engine, MetaData, Table, Column, Float, DateTime, Index, Numeric
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 from pathlib import Path
@@ -128,7 +128,7 @@ def process_netcdf(zip_file_path: str, variable_short_name: str) -> tuple[xr.Dat
 
             ds = ds.resample(time="1D").max()
             ds = ds.squeeze(drop=True)
-            ds[variable_short_name] *= 100
+            ds[variable_short_name] *= 1e9
 
             return ds, temp_dir
 
