@@ -6,6 +6,7 @@ python-dotenv
 psycopg2
 mercantile
 geopandas
+pandas==2.1.4
 geoalchemy2
 apache-airflow
 
