@@ -1,5 +1,5 @@
 version: '3.8'
- 
+
 services:
   postgres:
     image: postgres:13
@@ -9,42 +9,55 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      retries: 5
 
   airflow-webserver:
     image: apache/airflow:2.8.1
     restart: always
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    env_file: .env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__RBAC: 'true'
       _AIRFLOW_WWW_USER_USERNAME: airflow
       _AIRFLOW_WWW_USER_PASSWORD: airflow
+      PYTHONPATH: /opt/airflow  # So Airflow can import from /opt/airflow/utils
     volumes:
       - ./dags:/opt/airflow/dags
       - ./utils:/opt/airflow/utils
-      - ./logs:/opt/airflow/logs 
+      - ./logs:/opt/airflow/logs
     ports:
       - "8080:8080"
     command: >
-      bash -c "airflow db upgrade &&
-               airflow users create --username airflow --password airflow --firstname Admin --lastname User --role Admin --email airflow@airflow.com &&
-               airflow webserver"
+      bash -c "
+        airflow db upgrade &&
+        airflow users create --username airflow --password airflow --firstname Admin --lastname User --role Admin --email airflow@airflow.com &&
+        airflow webserver
+      "
 
   airflow-scheduler:
     image: apache/airflow:2.8.1
     restart: always
     depends_on:
-      - airflow-webserver
+      airflow-webserver:
+        condition: service_started
+    env_file: .env
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      PYTHONPATH: /opt/airflow
     volumes:
       - ./dags:/opt/airflow/dags
-      - ./utils:/opt/airflow/utils 
+      - ./utils:/opt/airflow/utils
       - ./logs:/opt/airflow/logs
     command: airflow scheduler
 
