@@ -79,6 +79,7 @@ class CamsDownload:
                     'leadtime_hour': '12',
                     'time': ['00:00', '12:00'],
                     'variable': variable_name,
+ #                   'area':[46.07, -57.13, -45.83, 121.46],
                 },
                 output_zip_path
             )
@@ -112,8 +113,8 @@ class CamsDownload:
                 latitude = dataset.variables['latitude'][:]
                 valid_time = dataset.variables['valid_time'][:]
                 variable_data = dataset.variables[variable_short_name][:]
-
-                longitude = np.where(longitude > 180, longitude - 360, longitude)
+                # Fix longitude values
+                #longitude = np.where(longitude > 180, longitude - 360, longitude)
 
                 if len(valid_time.shape) == 2:
                     valid_time = valid_time.reshape(-1)
@@ -130,9 +131,10 @@ class CamsDownload:
                     {variable_short_name: (["time", "latitude", "longitude"], variable_data)},
                     coords={"longitude": longitude, "latitude": latitude, "time": valid_time}
                 )
-
+        
                 ds = ds.resample(time="1D").max()
                 ds = ds.squeeze(drop=True)
+                # # Convert kg/m³ to µg/m³
                 ds[variable_short_name] *= 1e9
 
                 return ds, temp_dir
