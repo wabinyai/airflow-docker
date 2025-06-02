@@ -74,6 +74,7 @@ class CamsDownload:
                 'cams-global-atmospheric-composition-forecasts',
                 {
                     'date': date_range,
+                #    'date': ["2024-02-10/2024-02-15"],
                     'type': 'forecast',
                     'format': 'netcdf_zip',
                     'leadtime_hour': '12',
