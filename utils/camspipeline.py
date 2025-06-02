@@ -114,7 +114,7 @@ class CamsDownload:
                 valid_time = dataset.variables['valid_time'][:]
                 variable_data = dataset.variables[variable_short_name][:]
                 # Fix longitude values
-                #longitude = np.where(longitude > 180, longitude - 360, longitude)
+                longitude = np.where(longitude > 180, longitude - 360, longitude)
 
                 if len(valid_time.shape) == 2:
                     valid_time = valid_time.reshape(-1)
