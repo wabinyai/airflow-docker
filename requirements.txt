@@ -9,7 +9,8 @@ geopandas
 pandas==2.1.4
 geoalchemy2
 apache-airflow
-mapbox-vector-tile
-folium
-matplotlib
-scipy
+
+mapbox-vector-tile==2.1.0
+folium==0.16.0
+matplotlib==3.10.3
+scipy==1.15.0
