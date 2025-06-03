@@ -61,23 +61,33 @@ class CamsDownload:
             self.cdsapirc_path.write_text(cdsapirc_content)
             logger.info(f"Created/updated {self.cdsapirc_path}")
 
+    def get_latest_forecast_hour(self):
+        """Get the latest forecast time based on current UTC time rounded down to nearest 3-hour slot."""
+        now = datetime.datetime.today()
+        hour = (now.hour // 3) * 3
+        return f"{hour:02d}:00"
+
+
     def retrieve_variable(self, variable_name: str, output_zip_path: str) -> None:
         """Download a variable from the CAMS dataset."""
         try:
             c = cdsapi.Client()
             today = datetime.date.today()
             yesterday = today - datetime.timedelta(days=1)
-            date_range = f"{yesterday:%Y-%m-%d}/{today:%Y-%m-%d}"
+            date_range = f"{yesterday:%Y-%m-%d}/{today:%Y-%m-%d}" 
+            latest_time = self.get_latest_forecast_hour()
 
-            logger.info(f"Retrieving {variable_name} data for {date_range}...")
+            logger.info(f"Retrieving {variable_name} data for {date_range}  Time {latest_time}.")
             c.retrieve(
                 'cams-global-atmospheric-composition-forecasts',
                 {
                     'date': date_range,
+                #    'date': ["2024-02-10/2024-02-15"],
                     'type': 'forecast',
                     'format': 'netcdf_zip',
                     'leadtime_hour': '12',
-                    'time': ['00:00', '12:00'],
+                #    'time': ['00:00','03:00'], 
+                    'time': ['00:00', latest_time],
                     'variable': variable_name,
  #                   'area':[46.07, -57.13, -45.83, 121.46],
                 },
