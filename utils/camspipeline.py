@@ -62,10 +62,9 @@ class CamsDownload:
             logger.info(f"Created/updated {self.cdsapirc_path}")
 
     def get_latest_forecast_hour(self):
-        """Get the latest forecast time based on current UTC time rounded down to nearest 3-hour slot."""
+        """Get the latest forecast time based on current UTC time rounded down to nearest hour slot."""
         now = datetime.datetime.today()
-        hour = (now.hour // 3) * 3
-        return f"{hour:02d}:00"
+        return str(now.hour)
 
 
     def retrieve_variable(self, variable_name: str, output_zip_path: str) -> None:
@@ -85,9 +84,9 @@ class CamsDownload:
                 #    'date': ["2024-02-10/2024-02-15"],
                     'type': 'forecast',
                     'format': 'netcdf_zip',
-                    'leadtime_hour': '12',
-                #    'time': ['00:00','03:00'], 
-                    'time': ['00:00', latest_time],
+                    'leadtime_hour': [latest_time],
+                    'time': ['00:00','12:00'], 
+                #    'time': ['00:00', latest_time],
                     'variable': variable_name,
  #                   'area':[46.07, -57.13, -45.83, 121.46],
                 },
