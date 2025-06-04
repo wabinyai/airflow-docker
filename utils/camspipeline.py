@@ -62,7 +62,7 @@ class CamsDownload:
             logger.info(f"Created/updated {self.cdsapirc_path}")
 
     def get_latest_forecast_hour(self):
-        """Get the latest forecast time based on current UTC time rounded down to nearest hour slot."""
+        """Get the latest forecast time based on current UTC time rounded down to nearest hour slot. """
         now = datetime.datetime.now(datetime.timezone.utc)
         hour = now.hour % 12
         return "0" if hour == 0 else str(hour)
