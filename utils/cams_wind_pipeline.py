@@ -27,6 +27,7 @@ class CamsDownload:
     
     def __init__(self):
         """Initialize the CamsDownload class with database and CDS API configuration."""
+        # Load environment variables
         load_dotenv()
         self.DB_USER = os.getenv('DB_USER', 'airqo')
         self.DB_PASS = os.getenv('DB_PASS')
