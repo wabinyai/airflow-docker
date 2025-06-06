@@ -32,7 +32,7 @@ class CamsDownload:
         self.DB_USER = os.getenv('DB_USER', 'airqo')
         self.DB_PASS = os.getenv('DB_PASS')
         self.DB_HOST = os.getenv('DB_HOST', 'localhost')
-        self.DB_PORT = os.getenv('DB_PORT', '5432')
+        self.DB_PORT = os.getenv('DB_PORT','5432')
         self.DB_NAME = os.getenv('DB_NAME')
         self.CDS_API_KEY = os.getenv('CDS_API_KEY')
 
@@ -79,7 +79,7 @@ class CamsDownload:
                 'cams-global-atmospheric-composition-forecasts',
                 {
                     'date': date_range,
-                    'type': 'forecast',
+                    'type': ['forecast'],
                     'format': 'netcdf_zip',
                     'leadtime_hour': [latest_time],
                     'time': ['00:00', '12:00'],

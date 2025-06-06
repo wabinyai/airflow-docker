@@ -28,6 +28,7 @@ class CamsDownload:
     def __init__(self):
         """Initialize the CamsDownload class with database and CDS API configuration."""
         # Load environment variables
+        # Load environment variables
         load_dotenv()
         self.DB_USER = os.getenv('DB_USER', 'airqo')
         self.DB_PASS = os.getenv('DB_PASS')
@@ -81,14 +82,15 @@ class CamsDownload:
             c.retrieve(
                 'cams-global-atmospheric-composition-forecasts',
                 {
+                    'variable': variable_name,
                     'date': date_range,
                 #    'date': ["2024-02-10/2024-02-15"],
-                    'type': 'forecast',
+                    'type': ['forecast'],
                     'format': 'netcdf_zip',
                     'leadtime_hour': [latest_time],
                     'time': ['00:00','12:00'], 
                 #    'time': ['00:00', latest_time],
-                    'variable': variable_name,
+                    
  #                   'area':[46.07, -57.13, -45.83, 121.46],
                 },
                 output_zip_path
