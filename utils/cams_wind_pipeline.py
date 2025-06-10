@@ -70,7 +70,7 @@ class CamsDownload:
         try:
             c = cdsapi.Client()
             today = datetime.date.today()
-            yesterday = today - datetime.timedelta(days=1)
+            yesterday = today - datetime.timedelta(days=2)
             date_range = f"{yesterday:%Y-%m-%d}/{today:%Y-%m-%d}"
             latest_time = self.get_latest_forecast_hour()
 
