@@ -88,10 +88,7 @@ class CamsDownload:
                     'type': ['forecast'],
                     'format': 'netcdf_zip',
                     'leadtime_hour': [latest_time],
-                    'time': ['00:00','12:00'], 
-                #    'time': ['00:00', latest_time],
-                    
- #                   'area':[46.07, -57.13, -45.83, 121.46],
+                    'time': ['00:00','12:00'],  
                 },
                 output_zip_path
             )
