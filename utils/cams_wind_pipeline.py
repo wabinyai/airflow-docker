@@ -8,8 +8,7 @@ from sqlalchemy import create_engine, MetaData, Table, Column, Float, DateTime, 
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 import logging
-import glob
-from typing import Optional
+import glob 
 
 # === Logging Setup ===
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
