@@ -65,7 +65,7 @@ class CamsDownload:
     def get_latest_forecast_hour(self):
         """Get the latest forecast time based on current UTC time rounded down to nearest hour slot. """
         now = datetime.datetime.now(datetime.timezone.utc)
-        hour = now.hour % 12
+        hour = now.hour % 24
         return "0" if hour == 0 else str(hour)
 
 
@@ -88,7 +88,7 @@ class CamsDownload:
                     'type': ['forecast'],
                     'format': 'netcdf_zip',
                     'leadtime_hour': [latest_time],
-                    'time': ['00:00','12:00'],  
+                    'time': ['00:00'],  
                 },
                 output_zip_path
             )
