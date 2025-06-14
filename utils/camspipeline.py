@@ -65,9 +65,7 @@ class CamsDownload:
     def get_latest_forecast_hour(self):
         """Get the latest forecast time based on current UTC time rounded down to nearest hour slot. """
         now = datetime.datetime.now(datetime.timezone.utc)
-        hour = now.hour % 24
-        return "0" if hour == 0 else str(hour)
-
+        return str(now.hour) 
 
     def retrieve_variable(self, variable_name: str, output_zip_path: str) -> None:
         """Download a variable from the CAMS dataset."""
